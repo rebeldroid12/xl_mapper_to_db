@@ -3,19 +3,27 @@ from pprint import pprint
 import string
 
 
-# given number, calculate column in excel
-def colnum_string(n):
-    div=n
-    str=""
-    while div>0:
-        module=(div-1)%26
-        str=chr(65+module)+str
-        div=int((div-module)/26)
-    return str
+def column_num_to_str(num):
+    """
+    Converts number (1) to the column string ('A') as it would appear in an excel doc
+    :param num:
+    :return:
+    """
+    div = num
+    result = ""
+    while div > 0:
+        module = (div - 1) % 26
+        result = chr(65 + module) + result
+        div = int((div - module)/26)
+    return result
 
 
-# converts from col to num
-def col2num(col):
+def column_str_to_num(col):
+    """
+    Converts column string ('A') to the column number (1)
+    :param col: column
+    :return: column number
+    """
     num = 0
     for c in col:
         if c in string.ascii_letters:
@@ -26,7 +34,7 @@ def col2num(col):
 def get_workbook(xlsx):
     """
     Grabs excel workbook object
-    :param xlsx:
+    :param xlsx: excel file
     :return: workbook object
     """
 
@@ -35,37 +43,37 @@ def get_workbook(xlsx):
     return wb
 
 
-def get_value(wb, sheet, cell):
+def get_value(workbook, sheet, cell):
     """
     Return value of cell based on workbook, sheet and cell
-    :param wb:
-    :param sheet:
-    :param cell:
+    :param workbook: workbook
+    :param sheet: workbook sheet
+    :param cell: cell
     :return: value
     """
-    return str(wb.get_sheet_by_name(sheet)[cell].value)
+    return str(workbook.get_sheet_by_name(sheet)[cell].value)
 
 
-def build_out_map_dict(map_wb, field_col, field_rows):
+def build_out_map_dict(map_workbook, field_col, field_rows):
     """
-    From map workbook and row of fields return the map dict to be used
-    :param map_wb:
+    From map workbook, column of data fields and rows data fields are in - return the map dict to be used
+    :param map_workbook: map workbook
     :param field_col: column all data fields are in
-    :param field_rows: list of row nums or range
+    :param field_rows: list of row nums or range data fields are found at
     :return: map dict
     """
 
     # data fields
-    data_fields = dict()
+    data_fields = {}
 
     for num in field_rows:
-        data_fields[num] = get_value(map_wb, 'Map', '{}{}'.format(field_col, num))      # key (num) = value (data field)
+        data_fields[num] = get_value(map_workbook, 'Map', '{}{}'.format(field_col, num))      # key (num) = value (data field)
 
     # map
-    map_dict = dict()
+    map_dict = {}
 
     # get cell coordinates per version - key to dict
-    for row in map_wb['Map'].iter_rows(max_row=1, min_col=2):  # get all row 1, skip column 1
+    for row in map_workbook['Map'].iter_rows(max_row=1, min_col=2):  # get all row 1, skip column 1
 
         for cell in row:
             if cell.value:
@@ -77,31 +85,30 @@ def build_out_map_dict(map_wb, field_col, field_rows):
     # loop through and add data field info - version : { 'Location' : A, 'Data Field' : [Tab, Cell] }
     for num in field_rows:
         for version in map_dict.keys():
-            current_col = col2num(map_dict[version]['Location'])        # current column holds the tabs
-            next_col = colnum_string(current_col+1)         # next column holds the cell coordinate info
+            current_col = column_str_to_num(map_dict[version]['Location'])        # current column holds the tabs
+            next_col = column_num_to_str(current_col + 1)         # next column holds the cell coordinate info
 
             # if multiple cells...
-            if ',' in get_value(map_wb, 'Map', '{}{}'.format(next_col, num)):
-                cell = get_value(map_wb, 'Map', '{}{}'.format(next_col, num)).split(',')
+            if ',' in get_value(map_workbook, 'Map', '{}{}'.format(next_col, num)):
+                cell = get_value(map_workbook, 'Map', '{}{}'.format(next_col, num)).split(',')
 
             else:
-                cell = [get_value(map_wb, 'Map', '{}{}'.format(next_col, num))]
+                cell = [get_value(map_workbook, 'Map', '{}{}'.format(next_col, num))]
 
-            map_dict[version][data_fields[num]] = [get_value(map_wb, 'Map', '{}{}'.format(map_dict[version]['Location'], num)), cell]
+            map_dict[version][data_fields[num]] = [get_value(map_workbook, 'Map', '{}{}'.format(map_dict[version]['Location'], num)), cell]
 
     return map_dict
 
 
-# results
 def build_out_result_dict(report_wb, map_dict):
     """
-    Based on wb and map, build dictionary of results to be pushed to db
-    :param report_wb:
-    :param map_dict:
-    :return:
+    Based on workbook and map dictionary, build dictionary of results (to be pushed to db later)
+    :param report_wb: report workbook
+    :param map_dict: mapping dictionary
+    :return: result dictionary
     """
 
-    result = dict()
+    result = {}
 
     # all versions are in 1 place: tab Intro & cell B1
     version = get_value(report_wb, 'Intro', 'B1')
@@ -128,18 +135,18 @@ def build_out_result_dict(report_wb, map_dict):
 
 ###################################
 
-# report file
-report_wb = get_workbook('A_report.xlsx')
+if __name__ == '__main__':
+    # report file
+    report_wb = get_workbook('A_report.xlsx')
 
+    report_wb2 = get_workbook('B_report.xlsx')
 
-report_wb2 = get_workbook('B_report.xlsx')
+    # map file
+    map_wb = get_workbook('DataMap.xlsx')
 
-# map file
-map_wb = get_workbook('DataMap.xlsx')
+    # map dict
+    mapper = build_out_map_dict(map_wb, 'A', range(3, 5))
 
-# map dict
-map = build_out_map_dict(map_wb, 'A', range(3, 5))
+    pprint(build_out_result_dict(report_wb, mapper))
 
-pprint(build_out_result_dict(report_wb, map))
-
-pprint(build_out_result_dict(report_wb2, map))
+    pprint(build_out_result_dict(report_wb2, mapper))
